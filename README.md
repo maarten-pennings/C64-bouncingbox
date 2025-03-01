@@ -1,2 +1,653 @@
 # C64-bouncingbox
-A C64 (Commodore 64) Turbo Macro Pro assembler program that bounces a box on the screen
+
+A C64 (Commodore 64) Turbo Macro Pro assembler program that bounces a box on the screen.
+
+
+## Introduction
+
+A friend bought me an "old" Commodore 64.
+So I stepped up my YouTube time for C64 videos.
+I like Robin's ["8-Bit Show And Tell"](https://www.youtube.com/@8_Bit) channel,
+and one day I stumbled on his [Code Golf video](https://www.youtube.com/watch?v=zwTA7xi0QD0&t).
+
+The challenge is to write the shortest basic program that bounces a pixel in a
+(sprite) box that bounces on the screen. Robin finishes with a 278-byte program,
+consisting of 4 lines of commodore basic.
+
+As a beginner, I'm probably not going to improve on that.
+But the challenge inspired me to try to code it in assembler,
+using [TMP](https://turbo.style64.org/) - Turbo Macro Pro.
+My first program, apart from some small exercises in the past using 
+pen and paper using READ and DATA.
+
+Not having appropriate storage hardware (I'm working on getting a 
+[Pi1541](https://cbm-pi1541.firebaseapp.com/)) I decided to code this in 
+[VICE](https://vice-emu.sourceforge.io/), the C64 emulator on PC.
+
+Here is a [video](https://youtu.be/bCfYDJPJYEk) showing the end result.
+
+[![Video](box13.png)](https://youtu.be/bCfYDJPJYEk)
+
+
+## Features
+
+The program shows a "dot" that bounces in a "box".
+The box itself moves on the screen, bouncing of the borders.
+
+I deviate from Robin's project on several aspects:
+
+- Program is written in assembler.
+- Program does load like a basic program (`LOAD "BOX13.PRG",8`, no `,1`).
+- The box and the dot have different speeds.
+- When the box hits the border, the border flashes white.
+- When the dot hits the box, the box flashes white.
+- When the box flashes white, the dot stays light-blue.
+- I synced graphics updates with the raster scan line.
+
+
+## Files
+
+I developed on VICE and used an emulated floppy.
+This means that I have a D64 file, which is a "binary dump" of all
+disk block. 
+
+One of my rabbit holes was to try to understand this D64 file system,
+and to write a PC program to display the contents of each block in a 
+human friendly way. 
+
+You find the fruits of my labor in another GitHub repo: 
+[d64viewer](https://github.com/maarten-pennings/d64viewer).
+One feature of the viewer is that it allows to extract a file 
+from a D64 onto the host PC. That is how I got the following files.
+By the way, the 13 comes from the number of saves.
+
+- [`box13.tmp`](box13.tmp) the Turbo Macro Pro source file. Turbo Macro Pro does
+  not save files as plain text, but rather as a binary. I guess that
+  saves some bytes, and I also noted that it saves some meta info
+  like last cursor position and last marked block.
+  
+- [`box13.prg`](box13.prg) Turbo Macro Pro features an 
+  ["assemble to disk"](https://turbo.style64.org/docs/turbo-macro-pro-editor#:~:text=5-,assemble%2Dto%2Ddisk,-%3A%20Prompts%20for%20a)
+  which results in a program file. It might not be very customary
+  to give program files and extension (EXE?) but I did to distinguish
+  them from the other two.
+  
+- [`box13.txt`](box13.txt) Turbo Macro Pro also features a 
+  ["write-seq"](https://turbo.style64.org/docs/turbo-macro-pro-editor#:~:text=w-,write%2Dseq,-%3A%20Prompts%20for%20a)
+  which results in a text file ("sequential file" with the source as plain text).
+
+By the way, this was the command line to extract the text file
+
+```
+C:\Repos\d64viewer\viewer>run box.d64  --tfile BOX13.TXT  --msave box13.txt
+```
+
+
+## Implementation notes
+
+This section explains some aspects of the assembler source.
+
+  
+### Basic header
+
+I wanted my program to load as a basic program.
+basic programs start at 2064/$0801. Every line has a word with the address of the next 
+line (or 00 00 if there is no more next line), the a word with the line number, followed 
+by the tokenized basic text. Every line is ended with a 00.
+My basic program has one important line: `SYS 2100`.
+
+This is how my assembler program starts
+
+```asm
+         *= 2049      ; $0801
+LINE1    .WORD LINE2  ; LINK
+         .WORD 100    ; 100
+         .BYTE $9E    ; ÓÙÓ
+         .TEXT "2100" ; 2100
+         .BYTE $00    ; EOL
+LINE2    .WORD LINE3  ; LINK
+         .WORD 110    ; 110
+         .BYTE $8F    ; ÒÅÍ
+         .TEXT " MC PENNINGS, "
+         .TEXT "2025 03 01"
+         .BYTE $00    ; EOL
+LINE3    .WORD $00    ; LINK (EOF)
+
+         *= 2100
+         JMP SETUP    ; SKIP VARS
+```
+
+and then the listing looks like this.
+
+![basic](basic.png)
+
+The basic header ends with a `JMP` instruction at 2100.
+The `JMP` is there to jump over the variables section 
+that I put at the top of my program. The 2100 is the address 
+where the `SYS` on basic line 100 jumps to.
+
+I was hoping that when the basic header was so long that it
+overlapped with the `*=2100` following it, I would get a compile
+error. But that didn't happen. Pity.
+
+
+### Constants
+
+The basic header is followed by several constants.
+They are there in an attempt to make my program more readable.
+
+We see several different kind of Constants
+
+- VIC addresses like sprite slots (`SP0SLOT`) and registers (`SP0X`, `BORDER`)
+- color constants (`COLNORM` and `COLHIT`)
+- Motion limits (like box x min `BXMIN` and dot y max `DYMAX`).
+- Kernel routines (`CHROUT`)
+- Timing constants
+
+
+``` asm
+SP0SLOT  = $07F8   ; =2040
+SP1SLOT  = $07F9   ; =2041
+
+SP0X     = $D000
+SP0Y     = $D001
+SP1X     = $D002
+SP1Y     = $D003
+SP9X     = $D010   ; SP9=BIT VECTOR
+SCANLN   = $D012
+SP9EN    = $D015
+SP9YEX   = $D017
+SP9XEX   = $D01D
+SP0COL   = $D027
+SP1COL   = $D028
+
+SLOTA    = 13*64   ; =832=$340
+SLOTB    = 14*64   ; =896=$280
+
+BORDER   = $D020
+COLNORM  = 14      ; LIGHT BLUE
+COLHIT   = 1       ; WHITE
+
+BXMIN    = 24      ; BOX X MIN
+BXMAX    = 296     ; BOX X MAX 2-BYTE!
+BYMIN    = 50      ; BOX Y MIN
+BYMAX    = 208     ; BOX Y MAX
+
+DXMIN    = 1       ; DOT X MIN
+DXMAX    = 22      ; DOT X MAX
+DYMIN    = 1       ; DOT Y MIN
+DYMAX    = 19      ; DOT Y MAX
+
+CHROUT   = $FFD2   ; KERNAL PRINT
+SCNKEY   = $FF9F   ; KERNAL KBD SCAN
+GETIN    = $FFE4   ; KERNAL READ KBD
+
+BWAIT    = 1       ; BOX WAIT FRAMES
+DWAIT    = 5       ; DOT WAIT FRAMES
+
+HITTIME  = 8  ; >1 ; FRAMES FOR HIT COL
+```
+
+The box is a sprite. Sprites are normally 24×21 pixels, but the box used 
+double width and double height. To keep it visible its range is restricted 
+to (24,50)-(296,208). The dot is one pixel in second sprite. That second
+sprite has the same size and position as the box sprite. The box is drawn
+with one pixel all around, so the visible range of the dot is (1,1)-(22,19).
+
+The timing constants a a bit tricky.
+My program draws a frame at video display rate: 50Hz for my PAL machine.
+`BWAIT` indicates with which speed to update the box (1, every frame),
+and `DWAIT` indicates how often to update the dot (every 5 frames).
+
+When a the dot hits the box, or the box hits the border, the box respectively 
+border changes color (from `COLNORM` to `COLHIT`) for `HITTIME` frames 
+(actually one less, so minimum shall be 2 if you want to see a flash for one frame).
+
+Constants do not take space in the PRG file.
+
+
+## variables
+
+The next section, variables, does take space in the PRG file. 
+That is why we have the `JMP` at the end of the basic program to skip the variables.
+
+In this section we find the positions of box (`BXP`, `BYP`) and dot (`DXP`, `DYP`).
+The box is a sprite and sprites need a 9-bit x-coordinate, so `BXP` is a word.
+All others fit in a byte.
+
+We also find the directions for box and dot in x and y.
+Bit 0 indicates direction: 0=increase=right/down and 1=decrease/left/up.
+
+The box 
+```asm
+BXP      .WORD 100 ; BOX X-POS (16BIT)
+BXD      .BYTE 0   ; BOX X-DIR (EVEN=+)
+BYP      .BYTE 80  ; BOX Y-POS
+BYD      .BYTE 0   ; BOX Y-DIR (EVEN=+)
+
+DXP      .BYTE 10  ; DOT X-POS
+DXD      .BYTE 0   ; DOT X-DIR (EVEN=+)
+DYP      .BYTE 15  ; DOT Y-POS
+DYD      .BYTE 0   ; DOT Y-DIR (EVEN=+)
+
+DA0      .BYTE 0   ; DOT ADDR0 (SPRITE)
+DM0      .BYTE 0   ; DOT MASK0 (SPRITE)
+DA1      .BYTE 0   ; DOT ADDR1 (SPRITE)
+DM1      .BYTE 0   ; DOT MASK1 (SPRITE)
+
+BTIME    .BYTE BWAIT; FRAME COUNTER BOX
+DTIME    .BYTE DWAIT; FRAME COUNTER DOT
+
+BHIT     .BYTE 0   ; HIT COUNTER BOX
+DHIT     .BYTE 0   ; HIT COUNTER DOT
+```
+
+The dot is in a second sprite that has the same position as the box sprite.
+We need to map the dot coordinates to an address (actually offset) and bit mask 
+in the sprite bitmap: `DA1` and `DM1`. We also record the previous position 
+(`DA0` and `DM0`) to make it easier to erase the "old" dot when we update the frame.
+
+The `BTIME`/`DTIME` is the frame counter to give the box and dot their
+designated speed (defined by `BWAIT` and `DWAIT`).
+
+The `BHIT`/`DHIT` is the frame counter to highlight the hit color
+for the designated time (`HITTIME`).
+
+
+## Setup
+
+Borrowed from Arduino I used the `setup()` and main `loop()` paradigm.
+Next in the source comes the `SETUP`. This is where the basic header jumps to.
+
+```asm
+SETUP
+         JSR FILSLOTA
+         JSR FILSLOTB
+         JSR SP0SP1
+         JSR INITSCRN
+         JSR DRAWFRM
+
+```
+
+The first two subroutines fill the bitmap for the two sprites, one 
+for the box (slot A) and one for the dot (slot B). The subroutine after that
+writes to the VIC to setup the sprites (slots, color, expand, enable).
+
+The `INITSCRN` clears the screen, and `DRAWFRM` draws the first frame.
+Note that the variables are initialized, so that section determines the
+initial positions of the box and the dot. 
+
+There is one tricky thing: `DM0` is initialized to 0, this ensures the
+`DRAWFRM`, which XORs the dot, does not draw an old dot instead of erasing it.
+Now that I write this, I probably need an `JSR DOTMOVAM` before the `DRAWFRM` 
+in order compute `DA1` and `DM1`. They are 0 now, so not dot gets drawn 
+in the first frame.
+
+
+## Loop 
+
+Next comes the main loop.
+
+```asm
+LOOP
+         ; MOVE BOX IF BTIME EXPIRED
+         DEC BTIME
+         BNE LOOP1
+         LDA #BWAIT  ; RELOAD BTIME
+         STA BTIME
+         JSR BOXMOVX ; MOVE BOX
+         JSR BOXMOVY
+LOOP1
+         ; MOVE DOT IF DTIME EXPIRED
+         DEC DTIME
+         BNE LOOP2
+         LDA #DWAIT  ; RELOAD DTIME
+         STA DTIME
+         JSR DOTMOVX ; MOVE DOT
+         JSR DOTMOVY
+         JSR DOTMOVAM
+LOOP2
+         ; DRAW THE NEW FRAME
+         JSR DRAWFRM
+
+         ; CHECK IF SPC KEY PRESSED
+         JSR SCNKEY
+         JSR GETIN
+         CMP #$20
+         BNE LOOP
+
+         ; HIDE BOX AND DOT
+         LDA #0
+         STA SP9EN
+
+         ; BORDER COLOR
+         LDA #COLNORM
+         STA BORDER
+
+         ; END
+         RTS
+```
+
+The first two sections (`LOOP` and `LOOP1`) are very similar. 
+They check the box (respectively dot) frame counter if they need to be moved. 
+If so their _coordinates_ get updated (no drawing yet) and their frame counter reset.
+There is a separate subroutine to update the X and the Y coordinates (for box and dot).
+For dot there is a third routine, it computes address and mask (`DA1` and `DM1`)
+from its coordinates (`DXP` and `DYP`).
+
+The four coordinate update routines inspect the direction variables to determine whether 
+to do an increase or decrease. If the coordinate happen to go out of bounds two things
+happen: the direction is flipped, and the hit frame counter (`BHIT`, `DHIT`) is set.
+
+After updating the positions, the next frame is drawn in sync with the VIC's 
+raster scanner by `DRAWFRM`.
+
+If no key is pressed, the main loop restarts at `LOOP`.
+If a key is hot, the sprites are hidden and the border set to its normal color
+before the program terminates (Returns to its caller `RTS`).
+
+
+### Coordinate update
+
+All four coordinate update routines are more or less the same.
+Find below the one for the x-coordinate of the dot.
+
+They start by checking what the direction is (increase or decrease),
+and branch to that subpart. The sub part increases (decreases) and 
+checks for an out of bounds. If out-of-bounds, The increase (decrease) is undone
+and a jump to `DOTFLIPX` is made.
+
+This routine flips the direction (`INC` flips bit 0 of `DXD`) and 
+sets the hit counter `DHIT` to `HITTIME`.
+
+```asm
+DOTMOVX  ; CHECK DIRECTION BIT
+         LDA DXD
+         AND #$01
+         BNE DOTDECX
+
+DOTINCX
+         INC DXP
+         LDA #(DXMAX+1)
+         CMP DXP
+         BNE DOTMOVX1
+         ; UNDO INC
+         DEC DXP
+         JMP DOTFLIPX
+
+DOTDECX
+         DEC DXP
+         LDA #(DXMIN-1)
+         CMP DXP
+         BNE DOTMOVX1
+         ; UNDO DEC
+         INC DXP
+
+DOTFLIPX ; FLIP DIRECTION
+         INC DXD
+         LDA #HITTIME
+         STA DHIT
+
+DOTMOVX1
+         RTS
+```
+
+The move Y for box and dot is very similar. The move X for box is a bit more complex
+because it is a two-byte variable.
+
+```asm
+BOXMOVX  ; CHECK DIRECTION BIT
+         LDA BXD
+         AND #$01
+         BNE BOXDECX
+
+BOXINCX  ; 16 BIT INC
+         INC BXP+0
+         BNE BOXINCX1
+         INC BXP+1
+BOXINCX1 ; 16 BIT CMP WITH XMAX
+         LDA #>(BXMAX+1)
+         CMP BXP+1
+         BNE BOXMOVX1
+         LDA #<(BXMAX+1)
+         CMP BXP+0
+         BNE BOXMOVX1
+         ; UNDO INC
+         DEC BXP+0 ;NO NEED TO DEC MSB
+         JMP BOXFLIPX
+
+BOXDECX  ; 16 BIT DEC
+         LDA BXP+0
+         BNE BOXDECX1
+         DEC BXP+1
+BOXDECX1 DEC BXP+0
+         ; 16 BIT CMP WITH XMIN
+         LDA #>(BXMIN-1)
+         CMP BXP+1
+         BNE BOXMOVX1
+         LDA #<(BXMIN-1)
+         CMP BXP+0
+         BNE BOXMOVX1
+         ; UNDO DEC
+         INC BXP+0 ;NO NEED TO INC MSB
+
+BOXFLIPX ; FLIP DIRECTION
+         INC BXD
+         LDA #HITTIME
+         STA BHIT
+
+BOXMOVX1
+         RTS
+```
+
+
+### Dot address and mask
+
+The dot x and y coordinate must still be mapped to an address (actually offset) and mask
+in its bitmap. That is the purpose of the `DOTMOVAM` subroutine.
+
+```asm
+DOTMOVAM ; ADDR= Y*3 + X//8
+         LDA DXP
+         LSR A
+         LSR A
+         LSR A
+         CLC
+         ADC DYP
+         ADC DYP
+         ADC DYP
+         STA DA1  ; NEW DOT ADDRESS
+
+         ; MASK= 1 << (8-X%8)
+         LDA DXP
+         AND #$07
+         TAX
+         LDA LUT,X
+         STA DM1  ; MASK AT NEW ADDRESS
+
+         RTS
+
+LUT      .BYTE $80,$40,$20,$10
+         .BYTE $08,$04,$02,$01
+
+```
+
+The address (offset) `DM1` is computed from `Y*3 + X//8`, using triple shift (X)
+and a triple addition (Y).
+
+The mask is computed from `1 << (8-X%8)`, using an AND and a lookup table `LUT`.
+
+
+### Draw frame
+
+The draw frame subroutine has one scary aspect that I'm not completely sure of.
+I wait for the VIC's scan line to be at 255, that is about 5 lines into the lower border.
+Only then I start to update the VIC's registers.
+The intention is to prevent "tearing" of the sprites.
+
+The rest is pretty straightforward. 
+- Clear the old dot with an EOR using the old address (`DA0`) and mask (`DM0`).
+- Update the LSB of the sprites' x-coordinates
+- Update the MSB of the sprites' x-coordinates.
+- Update the sprites' y-coordinates.
+- Draw the new dot with an EOR using the new address (`DA1`) and mask (`DM1`).
+- Record the new address and mask as old.
+
+```asm
+DRAWFRM
+         ; WAIT TILL SCANLINE AT BORDER
+         LDA #255
+         CMP SCANLN
+         BNE *-3
+
+         ; ERASE DOT OLD POS
+         LDX DA0
+         LDA SLOTB,X
+         EOR DM0
+         STA SLOTB,X
+
+         ; SPRITES XPOS LSB
+         LDA BXP+0
+         STA SP0X
+         STA SP1X
+
+         ; SPRITES XPOS MSB
+         LDA BXP+1
+         BEQ *+4
+         LDA #3
+         STA SP9X
+
+         ; SPRITES YPOS
+         LDA BYP
+         STA SP0Y
+         STA SP1Y
+
+         ; DRAW DOT NEW POS
+         LDX DA1
+         LDA SLOTB,X
+         EOR DM1
+         STA SLOTB,X
+
+         ; RECORD NEW DOT POS
+         LDA DA1
+         STA DA0
+         LDA DM1
+         STA DM0
+```
+
+There is one more thing we need to do: flash if there was a hit.
+That is done in the remainder of the `DRAWFRM` routine, for box and the for dot.
+
+```asm
+         ; BOX HIT
+         LDA #COLNORM
+         LDX BHIT
+         BEQ DRAWFRM1
+         DEX
+         STX BHIT
+         BEQ *+4 ; SKIP NEXT
+         LDA #COLHIT
+         STA BORDER
+
+DRAWFRM1
+         ; DOT HIT
+         LDA #COLNORM
+         LDX DHIT
+         BEQ DRAWFRM2
+         DEX
+         STX DHIT
+         BEQ *+4 ; SKIP NEXT
+         LDA #COLHIT
+         STA SP0COL
+
+DRAWFRM2
+         RTS
+```
+
+If the frame counter (in register X) is 0 the hit coloring is skipped.
+Else, the frame counter is decremented. If it is 0 after the decrement 
+the color is `COLNORM` else `COLHIT`. This is recorded in register A,
+and finally stored in the VIC register (`BORDER` respectively `SP0COL`).
+
+
+### Init screen
+
+This routine clears the screen and sets the border color to normal.
+
+```asm
+INITSCRN
+         LDA #COLNORM
+         STA BORDER
+
+         LDA #$93 ; CLR/HOME CHAR
+         JSR CHROUT
+
+         RTS
+```
+
+### Bitmap for sprites
+
+The bitmap for the box sprite is computed.
+
+```asm
+FILSLOTA
+         LDA #$FF
+         STA SLOTA+0
+         STA SLOTA+1
+         STA SLOTA+2
+         STA SLOTA+(20*3)+0
+         STA SLOTA+(20*3)+1
+         STA SLOTA+(20*3)+2
+         LDX #(3*21)-3-3
+DRAW     LDA #$80
+         STA SLOTA+0,X
+         LDA #$00
+         STA SLOTA+1,X
+         LDA #$01
+         STA SLOTA+2,X
+         DEX
+         DEX
+         DEX
+         BNE DRAW
+         RTS
+```
+
+Same for the dot sprite, which is even simpler.
+
+```asm
+FILSLOTB
+         LDA #0
+         LDX #3*21
+FILSLOTB1
+         STA SLOTB,X
+         DEX
+         BNE FILSLOTB1
+
+         RTS
+```
+
+### Sprite setup
+
+The final subroutine configures the VIC registers for the two sprites.
+
+```asm
+SP0SP1
+         LDA #SLOTA/64
+         STA SP0SLOT
+
+         LDA #SLOTB/64
+         STA SP1SLOT
+
+         LDA #COLNORM
+         STA SP0COL
+         STA SP1COL
+
+         LDA #3
+         STA SP9XEX   ; EXPAND X
+         STA SP9YEX   ; EXPAND Y
+         STA SP9EN    ; ENABLE
+
+         RTS
+```
+
+(end)
