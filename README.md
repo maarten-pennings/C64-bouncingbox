@@ -98,16 +98,16 @@ My basic program has one important line: `SYS 2100`.
 
 This is how my assembler program starts
 
-```asm
+```nasm
          *= 2049      ; $0801
 LINE1    .WORD LINE2  ; LINK
          .WORD 100    ; 100
-         .BYTE $9E    ; ÓÙÓ
+         .BYTE $9E    ; SYS
          .TEXT "2100" ; 2100
          .BYTE $00    ; EOL
 LINE2    .WORD LINE3  ; LINK
          .WORD 110    ; 110
-         .BYTE $8F    ; ÒÅÍ
+         .BYTE $8F    ; REM
          .TEXT " MC PENNINGS, "
          .TEXT "2025 03 01"
          .BYTE $00    ; EOL
@@ -206,7 +206,7 @@ border changes color (from `COLNORM` to `COLHIT`) for `HITTIME` frames
 Constants do not take space in the PRG file.
 
 
-## variables
+## Variables
 
 The next section, variables, does take space in the PRG file. 
 That is why we have the `JMP` at the end of the basic program to skip the variables.
@@ -219,7 +219,7 @@ We also find the directions for box and dot in x and y.
 Bit 0 indicates direction: 0=increase=right/down and 1=decrease/left/up.
 
 The box 
-```asm
+```nasm
 BXP      .WORD 100 ; BOX X-POS (16BIT)
 BXD      .BYTE 0   ; BOX X-DIR (EVEN=+)
 BYP      .BYTE 80  ; BOX Y-POS
@@ -259,7 +259,7 @@ for the designated time (`HITTIME`).
 Borrowed from Arduino I used the `setup()` and main `loop()` paradigm.
 Next in the source comes the `SETUP`. This is where the basic header jumps to.
 
-```asm
+```nasm
 SETUP
          JSR FILSLOTA
          JSR FILSLOTB
@@ -288,7 +288,7 @@ in the first frame.
 
 Next comes the main loop.
 
-```asm
+```nasm
 LOOP
          ; MOVE BOX IF BTIME EXPIRED
          DEC BTIME
@@ -360,7 +360,7 @@ and a jump to `DOTFLIPX` is made.
 This routine flips the direction (`INC` flips bit 0 of `DXD`) and 
 sets the hit counter `DHIT` to `HITTIME`.
 
-```asm
+```nasm
 DOTMOVX  ; CHECK DIRECTION BIT
          LDA DXD
          AND #$01
@@ -395,7 +395,7 @@ DOTMOVX1
 The move Y for box and dot is very similar. The move X for box is a bit more complex
 because it is a two-byte variable.
 
-```asm
+```nasm
 BOXMOVX  ; CHECK DIRECTION BIT
          LDA BXD
          AND #$01
@@ -446,7 +446,7 @@ BOXMOVX1
 The dot x and y coordinate must still be mapped to an address (actually offset) and mask
 in its bitmap. That is the purpose of the `DOTMOVAM` subroutine.
 
-```asm
+```nasm
 DOTMOVAM ; ADDR= Y*3 + X//8
          LDA DXP
          LSR A
@@ -493,7 +493,7 @@ The rest is pretty straightforward.
 - Draw the new dot with an EOR using the new address (`DA1`) and mask (`DM1`).
 - Record the new address and mask as old.
 
-```asm
+```nasm
 DRAWFRM
          ; WAIT TILL SCANLINE AT BORDER
          LDA #255
@@ -538,7 +538,7 @@ DRAWFRM
 There is one more thing we need to do: flash if there was a hit.
 That is done in the remainder of the `DRAWFRM` routine, for box and the for dot.
 
-```asm
+```nasm
          ; BOX HIT
          LDA #COLNORM
          LDX BHIT
@@ -574,7 +574,7 @@ and finally stored in the VIC register (`BORDER` respectively `SP0COL`).
 
 This routine clears the screen and sets the border color to normal.
 
-```asm
+```nasm
 INITSCRN
          LDA #COLNORM
          STA BORDER
@@ -585,11 +585,11 @@ INITSCRN
          RTS
 ```
 
-### Bitmap for sprites
+### Bitmaps for sprites
 
 The bitmap for the box sprite is computed.
 
-```asm
+```nasm
 FILSLOTA
          LDA #$FF
          STA SLOTA+0
@@ -614,7 +614,7 @@ DRAW     LDA #$80
 
 Same for the dot sprite, which is even simpler.
 
-```asm
+```nasm
 FILSLOTB
          LDA #0
          LDX #3*21
@@ -626,11 +626,11 @@ FILSLOTB1
          RTS
 ```
 
-### Sprite setup
+### Sprites setup
 
 The final subroutine configures the VIC registers for the two sprites.
 
-```asm
+```nasm
 SP0SP1
          LDA #SLOTA/64
          STA SP0SLOT
