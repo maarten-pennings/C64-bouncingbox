@@ -64,8 +64,11 @@ By the way, the 13 comes from the number of saves.
   not save files as plain text, but rather as a binary. I guess that
   saves some bytes, and I also noted that it saves some meta info
   like last cursor position and last marked block.
+  
+  I incidentally used capital letters in the source file (e.g. "SYS"),
+  they do not come out nicely in the lst or txt file.
 
-- [`box13.prg`](box13.prg) Turbo Macro Pro can compile and generate a 
+- [`box13.lst`](box13.lst) Turbo Macro Pro can compile and generate a 
   list file, which is source and object side by side. This features is called
   [print-listing](https://turbo.style64.org/docs/turbo-macro-pro-editor#:~:text=4-,print%2Dlisting,-%3A%20Prompts%20for%20a).
   
@@ -79,23 +82,24 @@ By the way, the 13 comes from the number of saves.
   [write-seq](https://turbo.style64.org/docs/turbo-macro-pro-editor#:~:text=w-,write%2Dseq,-%3A%20Prompts%20for%20a)
   which results in a text file, a _sequential file_ (SEQ) with the source as plain text.
 
-By the way, this is the command line to extract the text file
+By the way, this is the command line to extract the text file using my d64viewer:
 
 ```
 C:\Repos\d64viewer\viewer>run box.d64  --tfile BOX13.TXT  --msave box13.txt
 ```
 
 And the size? Windows reports a file size of 597 bytes for `box13.prg`.
-That is the file size, including the header for a loadable PRG file.
+That is the file size, including the header, for a loadable PRG file.
 That header is small compare to e.g. the header of an EXE file on windows;
 it is only a two byte load address. In-memory the program is therefore 595 bytes.
 This is consistent with what we see in the list file: it starts at $0801 and 
 ends at $0A53, so it occupies $0A53+1-$0801 = 595 bytes. 
 
 This program is more than twice the size of what Robin had in BASIC (278 bytes).
-Of course size was not my goal. Secondly, this program has more features.
+Of course, size was not my goal. Secondly, this program has more features.
 But I believe the biggest factor is that in BASIC you rely on ROM libraries,
-like division and multiplication `INT(T/B)*B`.
+like division and multiplication `INT(T/B)*B`, which we have written in full in the 
+assembler variant.
 
 
 
@@ -133,23 +137,23 @@ LINE3    .WORD $00    ; LINK (EOF)
          JMP SETUP    ; SKIP VARS
 ```
 
-After loading, the listing then looks like this.
+After loading, a `LIST` produces this.
 
 ![basic](basic.png)
 
 The BASIC header ends with a `JMP` instruction at 2100 (to `SETUP`).
-The `JMP` is there to jump over the (constants and) variables section that comes next.
+The `JMP` is there to jump over the (constants and) variables sections that come next.
 The 2100 is the address where the `SYS` on BASIC line 100 jumps to.
 
 I was hoping that when the BASIC header was so long that it
-overlapped with the `*=2100` following it, I would get a compile
+overlaps with the `*=2100` following it, I would get a compile
 error from TMP. But that didn't happen. Pity.
 
 
 ### Constants
 
-The BASIC header is followed by several constants.
-They are there in an attempt to make my program more readable.
+The BASIC header is followed by a section with constants.
+They are there in an attempt to make the source more readable.
 
 We see several different kind of constants
 
@@ -206,7 +210,7 @@ HITTIME  = 8  ; >1 ; FRAMES FOR HIT COL
 Note on naming convention: SPx (x=0..7) is a register for sprite x;
 when x is 9 the register is a bit vector for all 8 sprites.
 
-The box is a sprite. Sprites are normally 24×21 pixels, but the box used 
+The box is a sprite. Sprites are normally 24×21 pixels, but the box uses 
 double width and double height, which means it uses 48×42 screen pixels. 
 To keep the sprite visible its range is restricted to (24,50)-(296,208). 
 The dot is one pixel in a second sprite. That dot sprite has the same size 
@@ -214,8 +218,8 @@ and position as the box sprite. The box is drawn with one pixel all around,
 so the visible range of the dot is (1,1)-(22,19).
 
 The timing constants are a bit tricky.
-My program draws a frame at video display rate: 50Hz for my PAL machine.
-`BWAIT` indicates with which speed to update the box (1, every frame),
+The program draws a frame at video display rate: 50Hz for my PAL machine.
+`BWAIT` indicates at with which speed to update the box (1, every frame),
 and `DWAIT` indicates how often to update the dot (every 5 frames).
 
 When the dot hits the box, or the box hits the border, the box respectively 
@@ -228,13 +232,13 @@ Constants do not take space in the PRG file.
 ## Variables
 
 The next section, variables, does take space in the PRG file. 
-That is why there is a `JMP` at the end of the BASIC program to skip the variables.
+That is why there is a `JMP` at the end of the BASIC program: to skip the variables.
 
-In this section we find the positions of box (`BXP`, `BYP`) and dot (`DXP`, `DYP`).
+In this section we find the _positions_ of box (`BXP`, `BYP`) and dot (`DXP`, `DYP`).
 The box is a sprite and sprites need a 9-bit x-coordinate, so `BXP` is a word.
 All others fit in a byte.
 
-We also find the directions for box and dot in x and y (e.g. `BXD` is the box its x direction).
+We also find the _directions_ for box and dot in x and y (e.g. `BXD` is the box its x direction).
 Only bit 0 of the direction byte is used: 0=increase=right/down and 1=decrease/left/up.
 
 ```nasm
@@ -267,8 +271,7 @@ in the sprite bitmap: `DA1` and `DM1`. We also record the previous position
 
 The `BTIME`/`DTIME` is the frame counter to give the box and dot their
 designated speed (defined by `BWAIT` and `DWAIT`).
-
-The `BHIT`/`DHIT` is the frame counter to highlight the hit color
+`BHIT`/`DHIT` is the frame counter to highlight the hit color
 for the designated time (`HITTIME`).
 
 
@@ -287,26 +290,37 @@ SETUP
 
 ```
 
-The first two subroutines fill the bitmap for the two sprites, one 
-for the box (in slot A) and one for the dot (in slot B). The subroutine after that
+The first two subroutines fill the slot holding the bitmap for the two sprites, one 
+for the box (in slot A) and one for the dot (in slot B). The subroutine after that (`SP0SP1`)
 writes to the VIC to setup the sprites (slots, color, expand, enable).
 
 The `INITSCRN` clears the screen, and `DRAWFRM` draws the first frame.
 Note that the variables section contains the initialization values, so 
-that section alos determines the initial positions of the box and the dot. 
+that section also determines the initial positions of the box and the dot. 
 
 There is one tricky thing: `DM0` is initialized to 0, this ensures the first
 `DRAWFRM`, which XORs the dot, does not draw an old dot instead of erasing it.
-It would stick forever because there is a XOR for erase and draw.
+It would stick forever because `DRAWFRM` employs a XOR for erase and draw.
 
 Now that I write this, we probably need an `JSR DOTMOVAM` before the `DRAWFRM` 
 in order compute `DA1` and `DM1`. They are 0 now, so no dot gets drawn 
-in the first frame.
+in the first frame. A small bug.
 
 
 ## Loop 
 
 Next comes the main loop.
+
+The first two sections (`LOOP` and `LOOP1`) are very similar. They check the box 
+respectively dot frame counters (`BTIME`/`DTIME`) to see if those objects need to be moved. 
+If so their _coordinates_ get updated (no drawing yet) and their frame counters reset.
+There is a separate subroutine to update the x and the y coordinates (for box and dot).
+For dot there is a third routine (`DOTMOVAM`), which computes the address and mask (`DA1` and `DM1`)
+from its coordinates (`DXP` and `DYP`).
+
+The four coordinate update routines inspect the associated direction variables to determine whether 
+to do an increase or decrease. If the coordinate happens to go out of bounds two things
+happen: the direction is flipped, and the hit frame counter (`BHIT`, `DHIT`) is set.
 
 ```nasm
 LOOP
@@ -348,23 +362,12 @@ LOOP2
          RTS
 ```
 
-The first two sections (`LOOP` and `LOOP1`) are very similar. They check the box 
-respectively dot frame counters (`BTIME`/`DTIME`) to see if those objects need to be moved. 
-If so their _coordinates_ get updated (no drawing yet) and their frame counters reset.
-There is a separate subroutine to update the X and the Y coordinates (for box and dot).
-For dot there is a third routine (`DOTMOVAM`), which computes the address and mask (`DA1` and `DM1`)
-from its coordinates (`DXP` and `DYP`).
-
-The four coordinate update routines inspect the associated direction variables to determine whether 
-to do an increase or decrease. If the coordinate happens to go out of bounds two things
-happen: the direction is flipped, and the hit frame counter (`BHIT`, `DHIT`) is set.
-
 After updating the positions, the next frame is drawn in sync with the VIC's 
 raster scanner by subroutine `DRAWFRM`.
 
 Next the keyboard is scanned. If the space key is not pressed, the main loop restarts at `LOOP`.
 If it is, the sprites are hidden and the border set to its normal color
-before the program terminates (Returns to its caller `RTS`).
+before the program terminates (returns to its caller `RTS`).
 
 
 ### Coordinate update
@@ -373,7 +376,7 @@ All four coordinate update routines are more or less the same.
 Find below the one for the x-coordinate of the dot (`DOTMOVX`).
 
 Each coordinate update starts by checking what the direction is (increase or decrease),
-and branches to that subpart. The sub part increases (decreases) the coordinate and 
+and branches to that sub part. The sub part increases (decreases) the coordinate and 
 checks for an out-of-bounds. If out-of-bounds, The increase (decrease) is undone
 and a jump to flip (e.g. `DOTFLIPX`) is made.
 
@@ -412,8 +415,9 @@ DOTMOVX1
          RTS
 ```
 
-The "move y-coordinate" for box and dot is very similar. 
-The move x-coordinate for _box_ is a bit more complex because the `BXP` is a two-byte variable.
+The "move y-coordinate" for box and dot is analogous to `DOTMOVX`. 
+The "move x-coordinate" for _box_ is a bit more complex because the `BXP` is a two-byte variable.
+We increment/decrement the high byte whenever we pass the 00/FF boundary.
 
 ```nasm
 BOXMOVX  ; CHECK DIRECTION BIT
@@ -505,15 +509,23 @@ I wait for the VIC's scan line to be at 255, that is about 5 lines into the lowe
 Only then I start to update the VIC's registers.
 The intention is to prevent "tearing" of the sprites.
 
+Find below my understanding of the pixel count on a PAL screen. One thing that
+is not very relevant here, but was new to me is that one 6502 clock cycle takes the
+same amount of time as drawing 8 pixels, the width of one character.
+
+The sprite origin vertical origin is at scan line 0, so a sprite at 50 is at the top of the screen area.
+But somehow, the sprite horizontal origin is at pixel column 24, because a sprite at column 24 is at
+the left side of the screen area.
+
 ![C64 screen size](c64screen.drawio.png)
 
 The rest is pretty straightforward. 
-- Clear the old dot with an EOR using the old address (`DA0`) and mask (`DM0`).
-- Update the LSB of the sprites' x-coordinates
-- Update the MSB of the sprites' x-coordinates.
+- Clear the old dot with an XOR (EOR in 6502 parlance) using the old address (`DA0`) and mask (`DM0`).
+- Update the LSB of the x-coordinates of both sprites (they are on the same position).
+- Update the MSB of the x-coordinates of both sprites.
 - Update the sprites' y-coordinates.
-- Draw the new dot with an EOR using the new address (`DA1`) and mask (`DM1`).
-- Record the new address and mask as old.
+- Draw the new dot with an XOR/EOR using the new address (`DA1`) and mask (`DM1`).
+- Record the new address and mask as the old one for the next draw.
 
 ```nasm
 DRAWFRM
@@ -586,8 +598,8 @@ DRAWFRM2
          RTS
 ```
 
-The accumulator (A) holds the border color.
-If the frame counter (in 6502 register X) is 0 changing the border color is skipped.
+The accumulator (A) holds the target border color.
+If the frame counter (in 6502 register X) is 0, there is no hit, and changing the border color is skipped.
 Else, the frame counter is decremented. If it is 0 after the decrement 
 the color is `COLNORM` else `COLHIT` and this is recorded in the accumulator (A).
 Finally A stored in the VIC register (`BORDER` respectively `SP0COL`).
