@@ -60,23 +60,23 @@ One feature of the viewer is that it allows to extract a file
 from a D64 onto the host PC. That is how I got the following files.
 By the way, the 13 comes from the number of saves.
 
-- [`box13.tmp`](box13.tmp) the Turbo Macro Pro source file. Turbo Macro Pro does
-  not save files as plain text, but rather as a binary. I guess that
-  saves some bytes, and I also noted that it saves some meta info
-  like last cursor position and last marked block.
+- [`box13.tmp`](box13.tmp) the Turbo Macro Pro source file - what I typed. 
+  Turbo Macro Pro does not save files as plain text, but rather as a binary. 
+  I guess that saves some bytes, and I also noted that it saves some meta 
+  info like last cursor position and last marked block.
   
   I incidentally used capital letters in the source file (e.g. "SYS"),
   they do not come out nicely in the lst or txt file.
 
 - [`box13.lst`](box13.lst) Turbo Macro Pro can compile and generate a 
-  list file, which is source and object side by side. This features is called
+  list file, which is source and object side by side. This feature is called
   [print-listing](https://turbo.style64.org/docs/turbo-macro-pro-editor#:~:text=4-,print%2Dlisting,-%3A%20Prompts%20for%20a).
   
 - [`box13.prg`](box13.prg) Turbo Macro Pro features an 
   [assemble to disk](https://turbo.style64.org/docs/turbo-macro-pro-editor#:~:text=5-,assemble%2Dto%2Ddisk,-%3A%20Prompts%20for%20a)
-  which results in a object file, in this case an executable. 
-  It might not be very customary to give program files and extension (EXE?) 
-  but I did to distinguish them from the other two.
+  which results in a PRG (program) file (object code with load address). 
+  In C64 circles it is not very customary to give program files an extension (EXE?) 
+  but I did, to distinguish it from the other three.
   
 - [`box13.txt`](box13.txt) Turbo Macro Pro also features a 
   [write-seq](https://turbo.style64.org/docs/turbo-macro-pro-editor#:~:text=w-,write%2Dseq,-%3A%20Prompts%20for%20a)
@@ -90,14 +90,14 @@ C:\Repos\d64viewer\viewer>run box.d64  --tfile BOX13.TXT  --msave box13.txt
 
 And the size? Windows reports a file size of 597 bytes for `box13.prg`.
 That is the file size, including the header, for a loadable PRG file.
-That header is small compare to e.g. the header of an EXE file on windows;
-it is only a two byte load address. In-memory the program is therefore 595 bytes.
+That header is small compared to e.g. the header of an EXE file on windows;
+it is only a 2-byte load address. In-memory the program is therefore 595 bytes.
 This is consistent with what we see in the list file: it starts at $0801 and 
 ends at $0A53, so it occupies $0A53+1-$0801 = 595 bytes. 
 
 This program is more than twice the size of what Robin had in BASIC (278 bytes).
 Of course, size was not my goal. Secondly, this program has more features.
-But I believe the biggest factor is that in BASIC you rely on ROM libraries,
+I believe the biggest factor is that in BASIC you use ROM libraries,
 like division and multiplication `INT(T/B)*B`, which we have written in full in the 
 assembler variant.
 
@@ -685,5 +685,19 @@ SP0SP1
 
          RTS
 ```
+
+
+## Conclusion
+
+Thanks, Robin, fun project.
+
+With so few registers in the 6502, the lifespan of a (value in a) register is short: a couple of instructions.
+This makes all code fragments rather independent, making coding easier.
+
+The video syncing made the main loop 15× slower (with respect to no-sync free running).
+Makes sense, now the program is waiting most of the time on the scan line reaching the bottom border. 
+
+I'm not sure I did syncing the right way.
+
 
 (end)
