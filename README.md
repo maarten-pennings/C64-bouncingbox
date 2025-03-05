@@ -647,7 +647,7 @@ DRAW     LDA #$80
          RTS
 ```
 
-The bitmap for the dox sprite is "computed"; set to all zeros.
+The bitmap for the dot sprite is "computed"; set to all zeros.
 
 ```nasm
 FILSLOTB
