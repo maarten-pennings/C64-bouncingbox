@@ -364,6 +364,7 @@ LOOP2
 
 After updating the positions, the next frame is drawn in sync with the VIC's 
 raster scanner by subroutine `DRAWFRM`.
+The draw routine uses the new coordinates and visualizes hits if `BHIT` or `DHIT` is flagged.
 
 Next the keyboard is scanned. If the space key is not pressed, the main loop restarts at `LOOP`.
 If it is, the sprites are hidden and the border set to its normal color
@@ -377,10 +378,10 @@ Find below the one for the x-coordinate of the dot (`DOTMOVX`).
 
 Each coordinate update starts by checking what the direction is (increase or decrease),
 and branches to that sub part. The sub part increases (decreases) the coordinate and 
-checks for an out-of-bounds. If out-of-bounds, The increase (decrease) is undone
+checks for an out-of-bounds. If out-of-bounds, the increase (decrease) is undone
 and a jump to flip (e.g. `DOTFLIPX`) is made.
 
-The flip routine reverses the direction (`INC` flips bit 0 of `DXD`) and 
+The flip routine reverses the direction variable (`INC` flips bit 0 of `DXD`) and 
 sets the hit counter `DHIT` to `HITTIME` so that the draw routine will flash.
 
 ```nasm
@@ -496,8 +497,8 @@ LUT      .BYTE $80,$40,$20,$10
 
 ```
 
-The address (offset) `DM1` is computed from `Y*3 + X//8`, using triple shift (X)
-and a triple addition (Y).
+The address (offset) `DM1` is computed from `Y*3 + X//8`, using triple shift (on X)
+and a triple addition (of Y).
 
 The mask is computed from `1 << (8-X%8)`, using an AND and a lookup table `LUT`.
 
