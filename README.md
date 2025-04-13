@@ -60,13 +60,22 @@ One feature of the viewer is that it allows to extract a file
 from a D64 onto the host PC. That is how I got the following files.
 By the way, the 13 comes from the number of saves.
 
-- [`box13.tmp`](box13.tmp) the Turbo Macro Pro source file - what I typed. 
+- [`box.d64`](box.d64) the binary disk image, unpacked with 
+  [d64viewer](https://github.com/maarten-pennings/d64viewer) 
+  to get the following files.
+
+- [`box13.tmp`](box13.tmp) the Turbo Macro Pro _source_ file - what I typed. 
   Turbo Macro Pro does not save files as plain text, but rather as a binary. 
   I guess that saves some bytes, and I also noted that it saves some meta 
   info like last cursor position and last marked block.
   
   I incidentally used capital letters in the source file (e.g. "SYS"),
   they do not come out nicely in the lst or txt file.
+
+- [`box13.txt`](box13.txt) Turbo Macro Pro features a 
+  [write-seq](https://turbo.style64.org/docs/turbo-macro-pro-editor#:~:text=w-,write%2Dseq,-%3A%20Prompts%20for%20a)
+  which results in a text file, a _sequential file_ (SEQ) with the source as plain text.
+  So similar to the binary .tmp but now text.
 
 - [`box13.lst`](box13.lst) Turbo Macro Pro can compile and generate a 
   list file, which is source and object side by side. This feature is called
@@ -78,10 +87,6 @@ By the way, the 13 comes from the number of saves.
   In C64 circles it is not very customary to give program files an extension (EXE?) 
   but I did, to distinguish it from the other three.
   
-- [`box13.txt`](box13.txt) Turbo Macro Pro also features a 
-  [write-seq](https://turbo.style64.org/docs/turbo-macro-pro-editor#:~:text=w-,write%2Dseq,-%3A%20Prompts%20for%20a)
-  which results in a text file, a _sequential file_ (SEQ) with the source as plain text.
-
 By the way, this is the command line to extract the text file using my d64viewer:
 
 ```
